@@ -88,62 +88,7 @@ signal:Connect(callback)
 
 ---
 
-## Installation and Source Layout
-
-Reactily's source tree is:
-
-```text
-Reactily/
-├── README.md
-├── FEATURES.md
-├── CONTRIBUTING.md
-├── LICENSE
-├── default.project.json
-├── test.project.json
-└── src/
-    ├── init.luau
-    ├── core/
-    │   ├── batching.luau
-    │   ├── compare.luau
-    │   ├── devMode.luau
-    │   ├── lifecycle.luau
-    │   ├── objectPool.luau
-    │   ├── scheduler.luau
-    │   ├── signal.luau
-    │   └── tableUtility.luau
-    ├── diagnostics/
-    │   ├── diagnostics.luau
-    │   └── profiler.luau
-    ├── interface/
-    │   ├── focus.luau
-    │   ├── style.luau
-    │   ├── theme.luau
-    │   ├── virtualGrid.luau
-    │   ├── virtualList.luau
-    │   └── virtualWindow.luau
-    ├── runtime/
-    │   ├── animation.luau
-    │   ├── animationGroup.luau
-    │   ├── binding.luau
-    │   ├── hostConfig.luau
-    │   ├── lazy.luau
-    │   ├── renderer.luau
-    │   ├── resource.luau
-    │   ├── root.luau
-    │   ├── spring.luau
-    │   └── transition.luau
-    ├── state/
-    │   ├── atom.luau
-    │   ├── context.luau
-    │   ├── hooks.luau
-    │   └── store.luau
-    └── virtual/
-        ├── element.luau
-        ├── forwardRef.luau
-        ├── memo.luau
-        └── reconciler.luau
-```
-
+## Installation
 
 For source development with Git:
 
