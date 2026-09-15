@@ -102,6 +102,7 @@ instance:Destroy()
 
 ## Installation
 
+<<<<<<< HEAD
 The package entry point is:
 
 ```text
@@ -109,6 +110,27 @@ src/init.luau
 ```
 
 With the package mounted as a ModuleScript:
+=======
+For source development with Git:
+
+```bash
+git clone https://github.com/lily-studios/Reactily.git
+cd Reactily
+```
+
+Update an existing clone with:
+
+```bash
+git pull
+```
+
+For a packaged build, use the repository's GitHub Releases page and install the provided Roblox package/model when one is available. A source ZIP can also be downloaded from GitHub and mounted with the same `src/init.luau` entry point.
+
+With Rojo, map Reactily into the location your project uses for shared packages, then serve your project normally.
+
+
+Mount the package into Roblox with `src/init.luau` as the package entry point, then require the mounted package:
+>>>>>>> 1e9959a99fca6ff3badc5a5bcb03f0164ab81b16
 
 ```lua
 local replicatedStorage = game:GetService("ReplicatedStorage")
