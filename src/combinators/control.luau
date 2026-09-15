@@ -11,6 +11,7 @@ local random = Random.new()
 --————————————————————————————————————————————————————————————————————--
 
 local core = script.Parent.Parent:WaitForChild("core")
+local errors = require(core:WaitForChild("errors"))
 local promiseModule = require(core:WaitForChild("promise"))
 
 --————————————————————————————————————————————————————————————————————--
@@ -26,8 +27,13 @@ export type retryOptions = {
 
 --————————————————————————————————————————————————————————————————————--
 
+--- Resolves after a non-negative delay with an optional value.
+---@generic T
+---@param seconds number Delay duration in seconds.
+---@param value T? Optional resolved value.
+---@return promiseModule.promise<T?> promiseValue Delayed Promise.
 function module.delay<T>(seconds: number, value: T?): promiseModule.promise<T?>
-	assert(seconds >= 0, "Promily.delay() seconds must be non-negative.")
+	assert(seconds == seconds and seconds < math.huge and seconds >= 0, "Promily.delay() seconds must be finite and non-negative.")
 
 	return promiseModule.new(function(resolve, _reject, onCancel)
 		local timerThread: thread?
@@ -48,12 +54,51 @@ end
 
 --————————————————————————————————————————————————————————————————————--
 
+--- Resolves after a non-negative delay without a payload.
+---@param seconds number Delay duration in seconds.
+---@return promiseModule.promise<nil> promiseValue Sleep Promise.
 function module.sleep(seconds: number): promiseModule.promise<nil>
 	return module.delay(seconds, nil)
 end
 
 --————————————————————————————————————————————————————————————————————--
 
+--- Creates a Promise that rejects after the requested delay.
+---@generic T
+---@param seconds number Non-negative delay in seconds.
+---@param reason any Rejection reason delivered when the timer expires.
+---@return promise<T> promiseValue Rejecting timer Promise.
+function module.rejectAfter<T>(seconds: number, reason: any): promiseModule.promise<T>
+	assert(
+		seconds == seconds and seconds < math.huge and seconds >= 0,
+		"Promily.rejectAfter() seconds must be finite and non-negative."
+	)
+
+	return promiseModule.new(function(_resolve, reject, onCancel)
+		local timerThread: thread?
+
+		timerThread = task.delay(seconds, function()
+			timerThread = nil
+			reject(reason)
+		end)
+
+		onCancel(function(_reason)
+			if not timerThread then return end
+
+			task.cancel(timerThread)
+			timerThread = nil
+		end)
+	end)
+end
+
+--————————————————————————————————————————————————————————————————————--
+
+--- Applies a relative timeout to a source Promise without cancelling the source.
+---@generic T
+---@param source T | promiseModule.promise<T> Source value or Promise.
+---@param seconds number Timeout duration in seconds.
+---@param options promiseModule.timeoutOptions? Optional timeout reason or fallback.
+---@return promiseModule.promise<T> promiseValue Timeout-bound consumer Promise.
 function module.timeout<T>(
 	source: T | promiseModule.promise<T>,
 	seconds: number,
@@ -64,16 +109,34 @@ end
 
 --————————————————————————————————————————————————————————————————————--
 
+--- Resolves with a fallback when a source does not settle before the timeout.
+---@generic T
+---@generic R
+---@param source T | promiseModule.promise<T> Source value or Promise.
+---@param seconds number Timeout duration in seconds.
+---@param fallback R | promiseModule.promise<R> Timeout fallback value or Promise.
+---@return promiseModule.promise<T | R> promiseValue Source or fallback result.
 function module.timeoutOr<T, R>(
 	source: T | promiseModule.promise<T>,
 	seconds: number,
 	fallback: R | promiseModule.promise<R>
 ): promiseModule.promise<T | R>
-	return promiseModule.resolve(source).timeoutOr(seconds, fallback)
+	local sourcePromise = promiseModule.resolve(source)
+	local timeoutPromise = sourcePromise.timeoutOr(seconds, fallback)
+
+	-- Luau cannot currently preserve the transformed Promise generic through the
+	-- recursive promiseBase boundary. The runtime value is still a Promily Promise;
+	-- restore the public T | R view only at this module boundary.
+	return timeoutPromise :: any
 end
 
 --————————————————————————————————————————————————————————————————————--
 
+--- Retries a lazy operation using the requested attempt, delay, backoff, and jitter policy.
+---@generic T
+---@param callback fun(attempt: number): T | promiseModule.promise<T> Attempt callback.
+---@param options retryOptions? Optional retry policy.
+---@return promiseModule.promise<T> promiseValue Retried operation.
 function module.retry<T>(
 	callback: (attempt: number) -> (T | promiseModule.promise<T>),
 	options: retryOptions?
@@ -106,13 +169,19 @@ function module.retry<T>(
 		shouldRetry = options.shouldRetry
 	end
 
-	assert(attempts >= 1, "Promily.retry() attempts must be at least 1.")
-	assert(backoff >= 0, "Promily.retry() backoff must be non-negative.")
-	assert(delaySeconds >= 0, "Promily.retry() delaySeconds must be non-negative.")
-	assert(jitter >= 0 and jitter <= 1, "Promily.retry() jitter must be between 0 and 1.")
+	assert(
+		attempts == attempts and attempts < math.huge and attempts >= 1 and attempts % 1 == 0,
+		"Promily.retry() attempts must be a finite positive integer."
+	)
+	assert(backoff == backoff and backoff < math.huge and backoff >= 0, "Promily.retry() backoff must be finite and non-negative.")
+	assert(
+		delaySeconds == delaySeconds and delaySeconds < math.huge and delaySeconds >= 0,
+		"Promily.retry() delaySeconds must be finite and non-negative."
+	)
+	assert(jitter == jitter and jitter >= 0 and jitter <= 1, "Promily.retry() jitter must be between 0 and 1.")
 
 	if maximumDelay ~= nil then
-		assert(maximumDelay >= 0, "Promily.retry() maximumDelay must be non-negative.")
+		assert(maximumDelay == maximumDelay and maximumDelay < math.huge and maximumDelay >= 0, "Promily.retry() maximumDelay must be finite and non-negative.")
 	end
 
 	return promiseModule.new(function(resolve, reject, onCancel)
@@ -233,10 +302,7 @@ function module.retry<T>(
 				end,
 				onRejected,
 				function(reason: any?)
-					onRejected({
-						kind = "CancelledAttempt",
-						reason = reason,
-					})
+					onRejected(errors.cancelledAttempt(reason))
 				end
 			)
 		end

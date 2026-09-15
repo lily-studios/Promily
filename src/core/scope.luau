@@ -31,10 +31,12 @@ export type scope = {
 
 --————————————————————————————————————————————————————————————————————--
 
+--- Creates a lifecycle scope that owns cancellation for tracked Promises.
+---@return scope scopeValue New Promise scope.
 function module.new(): scope
 	local cancellationSource = cancellation.new()
 	local isDeleted = false
-	local tracked: {[any]: promiseModule.observer<any>} = {}
+	local tracked: {[promiseModule.promise<any>]: promiseModule.observer<any>} = {}
 
 	local function untrack(promiseValue: any)
 		local observerValue = tracked[promiseValue]

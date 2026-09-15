@@ -32,8 +32,20 @@ type listener = {
 	connectionValue: connection?,
 }
 
+local function protectedCall(callback: (reason: any?) -> (), reason: any?): (boolean, any?)
+	local success, result = pcall(function(): any?
+		callback(reason)
+
+		return nil
+	end)
+
+	return success, result
+end
+
 --————————————————————————————————————————————————————————————————————--
 
+--- Creates a cancellation source and its read-only token.
+---@return source sourceValue New cancellation source.
 function module.new(): source
 	local isCancelled = false
 	local isDeleted = false
@@ -64,7 +76,13 @@ function module.new(): source
 		assert(not isDeleted, "Promily cancellation source is deleted.")
 
 		if isCancelled then
-			task.defer(callback, reason)
+			task.defer(function()
+				local success, failure = protectedCall(callback, reason)
+
+				if success then return end
+
+				warn("[Promily] Cancellation listener failed:", failure)
+			end)
 
 			return {
 				connected = false,
@@ -142,7 +160,13 @@ function module.new(): source
 				connectionValue.connected = false
 			end
 
-			task.defer(listenerValue.callback, cancelReason)
+			task.defer(function()
+				local success, failure = protectedCall(listenerValue.callback, cancelReason)
+
+				if success then return end
+
+				warn("[Promily] Cancellation listener failed:", failure)
+			end)
 		end
 
 		table.clear(currentListeners)

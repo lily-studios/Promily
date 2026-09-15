@@ -1,0 +1,16 @@
+{
+  "name": "PromilyTests",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Promily": {
+        "$path": "src"
+      }
+    },
+    "ServerScriptService": {
+      "PromilyTests": {
+        "$path": "tests"
+      }
+    }
+  }
+}

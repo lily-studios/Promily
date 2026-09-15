@@ -1,0 +1,34 @@
+{
+  "luau-lsp.studioPlugin.enabled": true,
+
+  "files.associations": {
+    "*.lua": "luau",
+    "*.luau": "luau"
+  },
+
+  "files.exclude": {
+    "**/.git": false
+  },
+
+  "luau-lsp.platform.type": "roblox",
+
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Reactily: Watch Init",
+      "type": "shell",
+      "command": "python3",
+      "args": [".vscode/scripts/generateInit.py", "--watch"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
+    }
+  ]
+}

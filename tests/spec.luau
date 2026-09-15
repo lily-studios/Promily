@@ -4,11 +4,14 @@
 
 local replicatedStorage = game:GetService("ReplicatedStorage")
 
-local Promily = require(replicatedStorage:WaitForChild("Promily"))
+local promily = require(replicatedStorage:WaitForChild("Promily"))
 
 --————————————————————————————————————————————————————————————————————--
 
-local tests = {}
+type TestCallback = () -> ()
+type TestSuite = {[string]: TestCallback}
+
+local tests: TestSuite = {}
 
 --————————————————————————————————————————————————————————————————————--
 
@@ -29,8 +32,8 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.resolveAndThen()
-	local value = Promily.resolve(5)
-		.andThen(function(current)
+	local value = promily.resolve(5)
+		.andThen(function(current: number): number
 			return current * 2
 		end)
 		.expect()
@@ -41,9 +44,12 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.rejectionRecovery()
-	local value = Promily.reject<number>("failure")
-		.catch(function(reason)
+	local rejectedPromise: promily.promise<number> = promily.reject("failure")
+
+	local value = rejectedPromise
+		.catch(function(reason: any): number
 			expectEqual(reason, "failure")
+
 			return 12
 		end)
 		.expect()
@@ -56,7 +62,7 @@ end
 function tests.finallyPreservesValue()
 	local cleanupCount = 0
 
-	local value = Promily.resolve("done")
+	local value = promily.resolve("done")
 		.finally(function()
 			cleanupCount += 1
 		end)
@@ -70,9 +76,9 @@ end
 
 function tests.cancellationCleanup()
 	local cleanupCount = 0
-	local started = Promily.defer<boolean>()
+	local started: promily.deferred<boolean> = promily.defer()
 
-	local promiseValue = Promily.new(function(_resolve, _reject, onCancel)
+	local promiseValue = promily.new(function(_resolve, _reject, onCancel)
 		onCancel(function(_reason)
 			cleanupCount += 1
 		end)
@@ -81,11 +87,12 @@ function tests.cancellationCleanup()
 	end)
 
 	started.promise.expect()
+
 	expectTrue(promiseValue.cancel("test"))
 
 	local settledStatus, reason = promiseValue.awaitStatus()
 
-	expectEqual(settledStatus, Promily.status.cancelled)
+	expectEqual(settledStatus, promily.status.cancelled)
 	expectEqual(reason, "test")
 	expectEqual(cleanupCount, 1)
 end
@@ -93,14 +100,14 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.cancellationSource()
-	local source = Promily.createCancellationSource()
-	local promiseValue = Promily.never(source.getToken())
+	local source = promily.createCancellationSource()
+	local promiseValue = promily.never(source.getToken())
 
 	source.cancel("scope")
 
 	local settledStatus, reason = promiseValue.awaitStatus()
 
-	expectEqual(settledStatus, Promily.status.cancelled)
+	expectEqual(settledStatus, promily.status.cancelled)
 	expectEqual(reason, "scope")
 
 	source.delete()
@@ -109,11 +116,10 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.scopeCancellation()
-	local scope = Promily.createScope()
+	local scope = promily.createScope()
 
 	local promiseValue = scope.newPromise(function(_resolve, _reject, onCancel)
-		local timer = task.delay(10, function()
-		end)
+		local timer = task.delay(10, function() end)
 
 		onCancel(function(_reason)
 			task.cancel(timer)
@@ -126,7 +132,7 @@ function tests.scopeCancellation()
 
 	local settledStatus, reason = promiseValue.awaitStatus()
 
-	expectEqual(settledStatus, Promily.status.cancelled)
+	expectEqual(settledStatus, promily.status.cancelled)
 	expectEqual(reason, "closed")
 
 	scope.delete()
@@ -135,10 +141,10 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.all()
-	local values = Promily.all({
-		Promily.resolve(1),
+	local values = promily.all({
+		promily.resolve(1),
 		2,
-		Promily.delay(.001, 3),
+		promily.resolve(3).delay(.001),
 	}).expect()
 
 	expectEqual(values[1], 1)
@@ -149,23 +155,23 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.allSettled()
-	local results = Promily.allSettled({
-		Promily.resolve("yes"),
-		Promily.reject("no"),
-		Promily.cancelled("stop"),
+	local results = promily.allSettled({
+		promily.resolve("yes"),
+		promily.reject("no"),
+		promily.cancelled("stop"),
 	}).expect()
 
-	expectEqual(results[1].status, Promily.status.resolved)
-	expectEqual(results[2].status, Promily.status.rejected)
-	expectEqual(results[3].status, Promily.status.cancelled)
+	expectEqual(results[1].status, promily.status.resolved)
+	expectEqual(results[2].status, promily.status.rejected)
+	expectEqual(results[3].status, promily.status.cancelled)
 end
 
 --————————————————————————————————————————————————————————————————————--
 
 function tests.any()
-	local value = Promily.any({
-		Promily.reject("one"),
-		Promily.delay(.001, "two"),
+	local value = promily.any({
+		promily.reject("one"),
+		promily.resolve("two").delay(.001),
 	}).expect()
 
 	expectEqual(value, "two")
@@ -174,10 +180,10 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.some()
-	local values = Promily.some({
-		Promily.delay(.001, 1),
-		Promily.resolve(2),
-		Promily.reject("ignored"),
+	local values = promily.some({
+		promily.resolve(1).delay(.001),
+		promily.resolve(2),
+		promily.reject("ignored"),
 	}, 2).expect()
 
 	expectEqual(#values, 2)
@@ -186,8 +192,8 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.props()
-	local values = Promily.props({
-		first = Promily.resolve(10),
+	local values = promily.props({
+		first = promily.resolve(10),
 		second = 20,
 	}).expect()
 
@@ -201,17 +207,20 @@ function tests.mapConcurrency()
 	local active = 0
 	local maximumActive = 0
 
-	local results = Promily.map(
+	local results = promily.map(
 		{1, 2, 3, 4, 5},
-		function(value)
+
+		function(value: number)
 			active += 1
 			maximumActive = math.max(maximumActive, active)
 
-			return Promily.delay(.001, value * 2)
+			return promily.resolve(value * 2)
+				.delay(.001)
 				.finally(function()
 					active -= 1
 				end)
 		end,
+
 		{
 			concurrency = 2,
 		}
@@ -226,13 +235,16 @@ end
 function tests.sequence()
 	local order: {number} = {}
 
-	local results = Promily.sequence({
+	local results = promily.sequence({
 		function()
 			order[#order + 1] = 1
-			return Promily.delay(.001, "a")
+
+			return promily.resolve("a").delay(.001)
 		end,
+
 		function()
 			order[#order + 1] = 2
+
 			return "b"
 		end,
 	}).expect()
@@ -246,11 +258,13 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.reduce()
-	local total = Promily.reduce(
+	local total = promily.reduce(
 		{1, 2, 3, 4},
-		function(accumulator, value)
+
+		function(accumulator: number, value: number): number
 			return accumulator + value
 		end,
+
 		0
 	).expect()
 
@@ -260,18 +274,18 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.timeout()
-	local settledStatus = Promily.never()
+	local settledStatus = promily.never()
 		.timeout(.001)
 		.awaitStatus()
 
-	expectEqual(settledStatus, Promily.status.rejected)
+	expectEqual(settledStatus, promily.status.rejected)
 end
 
 --————————————————————————————————————————————————————————————————————--
 
 function tests.timeoutFallback()
-	local value = Promily.timeoutOr(
-		Promily.never(),
+	local value = promily.timeoutOr(
+		promily.never(),
 		.001,
 		"fallback"
 	).expect()
@@ -284,11 +298,13 @@ end
 function tests.retry()
 	local attempts = 0
 
-	local value = Promily.retry(function(attempt)
+	local value = promily.retry(function(attempt: number): string | promily.promise<string>
 		attempts = attempt
 
 		if attempt < 3 then
-			return Promily.reject("retry")
+			local rejectedAttempt: promily.promise<string> = promily.reject("retry")
+
+			return rejectedAttempt
 		end
 
 		return "success"
@@ -310,7 +326,7 @@ function tests.fromEvent()
 		event:Fire("hello", 5)
 	end)
 
-	local arguments = Promily.fromEvent(event.Event).expect()
+	local arguments = promily.fromEvent(event.Event).expect()
 
 	expectEqual(arguments[1], "hello")
 	expectEqual(arguments[2], 5)
@@ -327,15 +343,17 @@ function tests.fromAttribute()
 		folder:SetAttribute("ready", true)
 	end)
 
-	local value = Promily.fromAttribute<boolean>(
+	local promiseValue: promily.promise<boolean> = promily.fromAttribute(
 		folder,
 		"ready",
 		{
-			predicate = function(current)
+			predicate = function(current: boolean): boolean
 				return current == true
 			end,
 		}
-	).expect()
+	)
+
+	local value = promiseValue.expect()
 
 	expectEqual(value, true)
 
@@ -346,21 +364,24 @@ end
 
 function tests.fromProperty()
 	local part = Instance.new("Part")
+
 	part.Transparency = 0
 
 	task.defer(function()
 		part.Transparency = 1
 	end)
 
-	local value = Promily.fromProperty<number>(
+	local promiseValue: promily.promise<number> = promily.fromProperty(
 		part,
 		"Transparency",
 		{
-			predicate = function(current)
+			predicate = function(current: number): boolean
 				return current == 1
 			end,
 		}
-	).expect()
+	)
+
+	local value = promiseValue.expect()
 
 	expectEqual(value, 1)
 
@@ -374,11 +395,12 @@ function tests.fromChild()
 
 	task.defer(function()
 		local child = Instance.new("Folder")
+
 		child.Name = "Target"
 		child.Parent = folder
 	end)
 
-	local child = Promily.fromChild(folder, "Target", {
+	local child = promily.fromChild(folder, "Target", {
 		className = "Folder",
 		timeoutSeconds = 1,
 	}).expect()
@@ -391,7 +413,7 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.wrap()
-	local asyncDouble = Promily.wrap(function(value: number)
+	local asyncDouble = promily.wrap(function(value: number): number
 		return value * 2
 	end)
 
@@ -401,11 +423,11 @@ end
 --————————————————————————————————————————————————————————————————————--
 
 function tests.toResult()
-	local result = Promily.reject("reason")
+	local result = promily.reject("reason")
 		.toResult()
 		.expect()
 
-	expectEqual(result.status, Promily.status.rejected)
+	expectEqual(result.status, promily.status.rejected)
 	expectEqual(result.reason, "reason")
 end
 

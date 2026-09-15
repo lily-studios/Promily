@@ -2,22 +2,24 @@
 
 -- runs Promily package tests without external test dependencies
 
-local tests = require(script.Parent:WaitForChild("spec"))
+local tests = require(script.Parent.spec)
 
 --————————————————————————————————————————————————————————————————————--
 
 local failures = 0
 local passed = 0
 
---————————————————————————————————————————————————————————————————————--
-
 local names: {string} = {}
+
+--————————————————————————————————————————————————————————————————————--
 
 for name in tests do
 	names[#names + 1] = name
 end
 
 table.sort(names)
+
+--————————————————————————————————————————————————————————————————————--
 
 for _, name in names do
 	local callback = tests[name]
@@ -32,6 +34,8 @@ for _, name in names do
 	failures += 1
 	warn(`[Promily Test] FAIL {name}: {tostring(failure)}`)
 end
+
+--————————————————————————————————————————————————————————————————————--
 
 print(`[Promily Test] {passed} passed, {failures} failed.`)
 
